@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SPV Issue Tracker — Operations Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1" integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0" crossorigin="anonymous"></script>
+<style>
+:root{
+  --bg:#fff6ee;
+  --bg-panel:#ffffff;
+  --bg-panel-2:#fff2e4;
+  --line:#f0c896;
+  --amber:#e8792f;
+  --amber-soft:#e8792f22;
+  --teal:#c9601f;
+  --red:#c8391d;
+  --text-primary:#1a1006;
+  --text-secondary:#5a4632;
+  --text-dim:#8a7256;
+  --radius:10px;
+  --font-display:'Georgia','Iowan Old Style',serif;
+  --font-body:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+  --font-mono:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;
+}
+*{box-sizing:border-box;}
+body{
+  margin:0;
+  background:
+    radial-gradient(1200px 600px at 8% -10%, #ffffff 0%, transparent 55%),
+    radial-gradient(1000px 700px at 100% 0%, #fbf9f6 0%, transparent 50%),
+    linear-gradient(160deg, #ffffff 0%, #fcfbfa 50%, #f6f4f1 100%);
+  background-attachment:fixed;
+  color:var(--text-primary);
+  font-family:var(--font-body);
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1280px;margin:0 auto;padding:28px 28px 60px;}
+
+/* Header */
+.header{
+  display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:18px;
+  padding-bottom:22px;margin-bottom:26px;border-bottom:1px solid var(--line);
+  animation:fadeInUp .4s ease both;
+}
+.header .eyebrow{
+  font-family:var(--font-mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--amber);margin-bottom:8px;
+}
+.header h1{
+  font-family:var(--font-display);font-size:32px;font-weight:400;margin:0;letter-spacing:.01em;
+  color:var(--text-primary);
+}
+.header .sub{color:var(--text-secondary);font-size:13.5px;margin-top:6px;max-width:560px;line-height:1.5;}
+.header-meta{
+  text-align:right;font-family:var(--font-mono);font-size:12px;color:var(--text-dim);
+}
+.header-meta .date-val{color:var(--teal);font-size:14px;display:block;margin-top:4px;}
+
+@keyframes fadeInUp{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+@keyframes chipIn{from{opacity:0;transform:scale(.85);}to{opacity:1;transform:scale(1);}}
+@keyframes rowIn{from{opacity:0;transform:translateY(5px);}to{opacity:1;transform:translateY(0);}}
+@keyframes panelIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+@keyframes pulseRing{0%{box-shadow:0 0 0 0 rgba(232,121,47,.35);}100%{box-shadow:0 0 0 8px rgba(232,121,47,0);}}
+
+/* KPI row */
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:22px;
+  animation:fadeInUp .45s ease .05s both;}
+.kpi-card{
+  background:var(--bg-panel);
+  border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;position:relative;overflow:hidden;
+  box-shadow:0 4px 14px rgba(232,121,47,0.08);
+  transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.kpi-card:hover{transform:translateY(-3px);box-shadow:0 10px 22px rgba(232,121,47,0.16);}
+.kpi-card::before{
+  content:'';position:absolute;top:0;left:0;width:3px;height:100%;background:var(--accent,var(--amber));
+  transition:width .18s ease;
+}
+.kpi-card.clickable{cursor:pointer;}
+.kpi-card.clickable:hover::before{width:5px;}
+.kpi-card.active{border-color:var(--accent,var(--amber));box-shadow:0 0 0 3px color-mix(in srgb, var(--accent,var(--amber)) 18%, transparent), 0 10px 22px rgba(232,121,47,0.16);}
+.kpi-card.active::before{width:5px;}
+.kpi-label{font-family:var(--font-mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-secondary);margin-bottom:10px;display:flex;align-items:center;gap:6px;}
+.kpi-value{font-family:var(--font-display);font-size:34px;color:var(--text-primary);line-height:1;transition:color .2s ease;}
+.kpi-note{font-size:11.5px;color:var(--text-dim);margin-top:8px;}
+.kpi-hint{margin-left:auto;font-size:9px;opacity:0;transition:opacity .15s ease;color:var(--amber);}
+.kpi-card.clickable:hover .kpi-hint,.kpi-card.active .kpi-hint{opacity:1;}
+
+/* Charts */
+.chart-row{display:grid;grid-template-columns:1.4fr 1fr;gap:16px;margin-bottom:22px;
+  animation:fadeInUp .5s ease .15s both;}
+.panel{
+  background:linear-gradient(180deg,var(--bg-panel) 0%,var(--bg-panel-2) 100%);
+  border:1px solid var(--line);border-radius:var(--radius);padding:20px 22px;
+  transition:box-shadow .2s ease;
+}
+.panel:hover{box-shadow:0 8px 22px rgba(232,121,47,0.10);}
+.panel h3{
+  font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--text-secondary);margin:0 0 4px;font-weight:600;display:flex;align-items:center;justify-content:space-between;
+}
+.panel .hint{font-size:9.5px;color:var(--text-dim);text-transform:none;letter-spacing:0;font-weight:400;}
+.panel .chart-box{position:relative;height:270px;margin-top:12px;}
+
+/* Filters */
+.filters-row{display:flex;gap:12px;align-items:center;margin-bottom:14px;flex-wrap:wrap;position:relative;z-index:30;}
+.filters-row > label{font-family:var(--font-mono);font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;}
+
+/* Multiselect */
+.ms{position:relative;}
+.ms-btn{
+  background:var(--bg-panel-2);color:var(--text-primary);border:1px solid var(--line);
+  border-radius:6px;padding:7px 12px;font-size:13px;font-family:var(--font-body);
+  cursor:pointer;display:flex;align-items:center;gap:8px;transition:border-color .15s ease, background .15s ease;
+}
+.ms-btn:hover{border-color:var(--amber);}
+.ms-btn.has-selection{border-color:var(--amber);background:var(--amber-soft);}
+.ms-btn .caret{font-size:9px;opacity:.6;transition:transform .15s ease;}
+.ms.open .ms-btn .caret{transform:rotate(180deg);}
+.ms-btn .count-badge{
+  background:var(--amber);color:#fff;font-size:10px;padding:1px 7px;border-radius:10px;
+  font-family:var(--font-mono);line-height:1.5;
+}
+.ms-panel{
+  position:absolute;top:calc(100% + 8px);left:0;min-width:230px;max-height:280px;overflow-y:auto;
+  background:var(--bg-panel);border:1px solid var(--line);border-radius:10px;
+  box-shadow:0 14px 30px rgba(60,30,0,.14);padding:8px;z-index:50;
+  opacity:0;transform:translateY(-6px) scale(.97);pointer-events:none;
+  transition:opacity .16s ease, transform .16s ease;
+}
+.ms.open .ms-panel{opacity:1;transform:translateY(0) scale(1);pointer-events:auto;}
+.ms-actions{display:flex;justify-content:space-between;padding:2px 6px 8px;margin-bottom:6px;border-bottom:1px solid var(--line);}
+.ms-actions button{background:none;border:none;color:var(--teal);font-size:10.5px;font-family:var(--font-mono);cursor:pointer;text-transform:uppercase;letter-spacing:.05em;}
+.ms-actions button:hover{color:var(--amber);}
+.ms-option{display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:6px;font-size:13px;cursor:pointer;transition:background .12s ease;}
+.ms-option:hover{background:var(--amber-soft);}
+.ms-option input{accent-color:var(--amber);width:14px;height:14px;cursor:pointer;}
+.ms-option .swatch{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+
+.reset-btn{
+  margin-left:auto;background:transparent;border:1px solid var(--line);color:var(--text-secondary);
+  padding:7px 14px;border-radius:6px;font-size:12px;cursor:pointer;font-family:var(--font-mono);
+  transition:border-color .15s ease,color .15s ease,transform .1s ease;
+}
+.reset-btn:hover{border-color:var(--amber);color:var(--amber);}
+.reset-btn:active{transform:scale(.96);}
+
+/* Chips */
+.chips-row{display:flex;gap:8px;flex-wrap:wrap;margin:2px 0 16px;min-height:0;}
+.chip{
+  display:inline-flex;align-items:center;gap:7px;background:var(--amber-soft);border:1px solid #e8a33d55;
+  color:var(--amber);padding:4px 8px 4px 12px;border-radius:20px;font-size:11.5px;font-family:var(--font-mono);
+  animation:chipIn .18s ease;
+}
+.chip .swatch{width:8px;height:8px;border-radius:50%;}
+.chip button{
+  background:rgba(0,0,0,.06);border:none;color:inherit;cursor:pointer;font-size:11px;line-height:1;
+  width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  transition:background .12s ease;
+}
+.chip button:hover{background:rgba(0,0,0,.14);}
+
+/* Table */
+.table-panel{
+  background:linear-gradient(180deg,var(--bg-panel) 0%,var(--bg-panel-2) 100%);border:1px solid var(--line);
+  border-radius:var(--radius);padding:22px;margin-bottom:22px;
+  animation:fadeInUp .45s ease .1s both;
+}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+thead th{
+  text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);
+  font-family:var(--font-mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--text-secondary);cursor:pointer;user-select:none;white-space:nowrap;transition:color .12s ease;
+}
+thead th:hover{color:var(--amber);}
+thead th .arrow{opacity:.4;font-size:9px;margin-left:3px;}
+thead th.sorted .arrow{opacity:1;color:var(--amber);}
+tbody tr.data-row{border-bottom:1px solid var(--line);cursor:pointer;transition:background .15s ease;animation:rowIn .28s ease both;}
+tbody tr.data-row:hover{background:#e8792f0d;}
+tbody td{padding:12px;vertical-align:top;color:var(--text-primary);}
+.sr-cell{font-family:var(--font-mono);color:var(--text-dim);width:36px;}
+.spv-pill{
+  display:inline-block;background:var(--amber-soft);color:var(--amber);border:1px solid #e8a33d55;
+  padding:3px 9px;border-radius:20px;font-size:11.5px;font-family:var(--font-mono);white-space:nowrap;
+  cursor:pointer;transition:background .12s ease,transform .12s ease;
+}
+.spv-pill:hover{background:#e8792f38;transform:translateY(-1px);}
+.owner-tag{font-size:12.5px;color:var(--teal);cursor:pointer;border-radius:6px;padding:2px 4px;margin:-2px -4px;transition:background .12s ease;}
+.owner-tag:hover{background:#c960201a;}
+.owner-tag.unassigned{color:var(--red);}
+.issue-title{font-weight:600;color:var(--text-primary);margin-bottom:2px;}
+.desc-preview{color:var(--text-secondary);font-size:12px;line-height:1.4;max-width:340px;
+  display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.status-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;}
+.status-dot.assigned{background:var(--teal);}
+.status-dot.unassigned{background:var(--red);}
+.empty-row td{padding:36px 12px;text-align:center;color:var(--text-dim);font-size:13px;animation:fadeInUp .3s ease both;}
+
+/* Expandable detail row */
+.detail-row td{background:#0a1a20;padding:0;}
+.detail-row .inner{
+  padding:0 20px 0 48px;max-height:0;overflow:hidden;border-left:2px solid var(--amber);
+  transition:max-height .28s ease, padding .28s ease;
+}
+.detail-row.open .inner{max-height:400px;padding:16px 20px 20px 48px;}
+.detail-block{margin-bottom:12px;}
+.detail-block .k{font-family:var(--font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--amber);margin-bottom:5px;}
+.detail-block .v{font-size:13px;color:#ffffff;line-height:1.6;white-space:pre-line;}
+
+footer{margin-top:26px;text-align:center;color:var(--text-dim);font-size:11.5px;font-family:var(--font-mono);}
+
+@media(max-width:900px){
+  .kpi-row{grid-template-columns:repeat(2,1fr);}
+  .chart-row{grid-template-columns:1fr;}
+  .desc-preview{max-width:none;}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="header">
+    <div>
+      <div class="eyebrow">Commercial &amp; Offtake · Issue Log</div>
+      <h1>SPV Issue Tracker</h1>
+      <div class="sub">Live view of open commercial issues across special-purpose vehicles — captive status, billing disputes, LD charges, and offtake agreements. Click a KPI card, chart bar/slice, or table tag to cross-filter.</div>
+    </div>
+    <div class="header-meta">
+      Next steps as on
+      <span class="date-val" id="asOfDate">7 July 2026</span>
+    </div>
+  </div>
+
+  <div class="kpi-row">
+    <div class="kpi-card clickable" id="kpiCardTotal" style="--accent:#e8a33d" title="Click to reset all filters">
+      <div class="kpi-label">Open Issues<span class="kpi-hint">RESET ⟲</span></div>
+      <div class="kpi-value" id="kpiTotal">0</div>
+      <div class="kpi-note">across all SPVs</div>
+    </div>
+    <div class="kpi-card" style="--accent:#3fb8af">
+      <div class="kpi-label">SPVs Affected</div>
+      <div class="kpi-value" id="kpiSpvs">0</div>
+      <div class="kpi-note">distinct entities</div>
+    </div>
+    <div class="kpi-card clickable" id="kpiCardUnassigned" style="--accent:#e2664f" title="Click to show only issues awaiting assignment">
+      <div class="kpi-label">Awaiting Assignment<span class="kpi-hint">FILTER ▾</span></div>
+      <div class="kpi-value" id="kpiUnassigned">0</div>
+      <div class="kpi-note">no owner / next step logged</div>
+    </div>
+    <div class="kpi-card" style="--accent:#8f7ee8">
+      <div class="kpi-label">Active Owners</div>
+      <div class="kpi-value" id="kpiOwners">0</div>
+      <div class="kpi-note">people/teams driving resolution</div>
+    </div>
+  </div>
+
+  <div class="table-panel">
+    <div class="filters-row">
+      <label>SPV</label>
+      <div class="ms" id="spvMs">
+        <button class="ms-btn" id="spvMsBtn" type="button">
+          <span id="spvMsLabel">All SPVs</span><span class="caret">▾</span>
+        </button>
+        <div class="ms-panel" id="spvMsPanel">
+          <div class="ms-actions"><button data-act="all" data-target="spv">Select all</button><button data-act="none" data-target="spv">Clear</button></div>
+          <div id="spvMsOptions"></div>
+        </div>
+      </div>
+      <label>Owner</label>
+      <div class="ms" id="ownerMs">
+        <button class="ms-btn" id="ownerMsBtn" type="button">
+          <span id="ownerMsLabel">All Owners</span><span class="caret">▾</span>
+        </button>
+        <div class="ms-panel" id="ownerMsPanel">
+          <div class="ms-actions"><button data-act="all" data-target="owner">Select all</button><button data-act="none" data-target="owner">Clear</button></div>
+          <div id="ownerMsOptions"></div>
+        </div>
+      </div>
+      <button class="reset-btn" id="resetBtn">Reset filters</button>
+    </div>
+    <div class="chips-row" id="chipsRow"></div>
+    <table id="issueTable">
+      <thead>
+        <tr>
+          <th data-key="sr">#<span class="arrow">↕</span></th>
+          <th data-key="spv">SPV<span class="arrow">↕</span></th>
+          <th data-key="issue">Issue<span class="arrow">↕</span></th>
+          <th data-key="owner">Owner<span class="arrow">↕</span></th>
+          <th data-key="has_next_steps">Next Step<span class="arrow">↕</span></th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+
+  <div class="chart-row">
+    <div class="panel">
+      <h3>Issues by SPV <span class="hint">click a bar to filter</span></h3>
+      <div class="chart-box"><canvas id="spvChart"></canvas></div>
+    </div>
+    <div class="panel">
+      <h3>Issues by Owner <span class="hint">click a slice to filter</span></h3>
+      <div class="chart-box"><canvas id="ownerChart"></canvas></div>
+    </div>
+  </div>
+
+  <footer>Sunsure Energy · Issue tracker snapshot, 7 July 2026 · Click any row for full detail</footer>
+</div>
+
+<script>
+const DATA = [
+  {"sr":1,"spv":"SS6PL","issue":"INOX- Raiberally","description":"Consumption of the customer has reduced drastically, against PPA capacity and current shareholding. Risk of captive status breach","remark":"As per Kartikeya's email dated 6 July 2026, we should curtail generation to the extent of shortfall in demand from the customer and bill the customer on deemed generation, in no case should there be a situation of captive breach","next_steps":"Nitin to take this up Sanjay Sadashiv","owner":"Nitin","has_next_steps":true},
+  {"sr":2,"spv":"SS6PL","issue":"JSL","description":"Consumption of the customer has reduced drastically, against PPA capacity and customer requesting reduced injection to avoid lapsation","remark":"As per discussion dated 27th June 2026, we should curtail generation to the extent of shortfall in demand from the customer and bill the customer on deemed generation, in no case should there be a situation of captive breach.\nFurther, banking agreement of customer is expected to be signed by 15th July 2026, currently pending for BG verification from Discom due to delayed response from customer's bank and final approval from Chairman UPPCL","next_steps":"Vinod Sir to take this up with the customer.","owner":"Vinod Sir","has_next_steps":true},
+  {"sr":3,"spv":"NREPL","issue":"INOX- Surajpur","description":"Consumer requesting schedule of only 2.3 MW against PPA capacity of 4.2 MW till the execution of Banking agreement under LTOA","remark":"As per Ishan and Nitin's discussion, CO team to sell this power under alternate mechanism, however, any breach of captive status to be appropriately highlighted to the customer.","next_steps":"Nitin to take this up Sanjay Sadashiv","owner":"Nitin","has_next_steps":true},
+  {"sr":4,"spv":"SS7PL","issue":"Ultratech Transaction","description":"LTOA-Consumer to revise connectivity agreements (UPPTCL)\nSTOA-Re-estimation of UTCL solar consumption capacity (without banking)\nConsumer to provide ST-11 NOCs and bear statutory cost","remark":"LTOA-Sunsure is providing consultancy support on interim basis. Consultancy charges shall be reimbursed by UltraTech\nSTOA - the customer has declined to bear approval costs. Estimated statutory charges (for 4 months STOA power delivery) are ~₹6.24 lakh and consultancy charges ~₹4 lakh. CSS shall be applicable on the customer during the STOA period and reimbursed after captive status is achieved at the end of the financial year.","next_steps":"Vinod Sir to take this up with the customer.","owner":"Vinod Sir","has_next_steps":true},
+  {"sr":5,"spv":"SS6PL (New Capacity - 6.2 MW)","issue":"WC Aligarh","description":"PPA SCOD is 6 August 2026. LT-2 approval has been obtained; however, timely power supply through the LTOA route is unlikely. The customer is unwilling to procure power through STOA.","remark":"Consumer is unwilling to procure power from Sunsure through STOA, citing lower IEX prices. Request extension under PPA Clause 3.4 (up to six months) by highlighting approval delays. This will safeguard the SCOD timeline and provide flexibility for interim third-party transactions.","next_steps":"Vinod Sir to take this up with the customer.","owner":"Vinod Sir","has_next_steps":true},
+  {"sr":6,"spv":"SS6PL (Old Capacity - 6.67 MW)","issue":"WC Aligarh","description":"LD charges raised for ~16 lakh FY 24-25","remark":"The customer is being requested to reassess the delay impact considering the actual energy supplied, as surplus energy was delivered beyond the contractual obligation despite the delay.","next_steps":"CO team to engage with the customer, with support from the BD team during discussions.","owner":"CO team","has_next_steps":true},
+  {"sr":7,"spv":"SS8PL","issue":"Hilltop Capacity Operationalization","description":"A 2.5 MW capacity has been tied up with Hilltop and the BPTA has been executed. The customer now intends to surrender the LTOA.","remark":"Since the BPTA has already been executed, relinquishment charges will be applicable if the customer proceeds with surrendering the LTOA.","next_steps":"Amritesh to take this up with the customer.","owner":"Amritesh","has_next_steps":true},
+  {"sr":8,"spv":"SS5PL","issue":"CHW Forge -Energy Settlement Payments","description":"Payment stuck ~ Rs. 14 lakhs against Feb 26 and March 26 invoices, as CHW denied to pay for lapsed units as per OA bill","remark":"Explained CHW officials about the reason i.e. due to less consumption of CHW's facility and communicated to relaese the full funds","next_steps":"CHW to revert back after internal reconicaltion","owner":"CHW","has_next_steps":true},
+  {"sr":9,"spv":"MH All SPVs","issue":"LTOA","description":"","remark":"","next_steps":"","owner":"Unassigned","has_next_steps":false},
+  {"sr":10,"spv":"SS31PL","issue":"Apollo/ Kisan Moulding Pending Payment","description":"Outstanding since Jan 26(Apollo Tubes) and Feb-26(Kissan Mouldings)","remark":"Capacities reduced, PPA amedments signed, waiting for approvals","next_steps":"Paurush to take this up with consumer post approvals","owner":"Paurush","has_next_steps":true},
+  {"sr":11,"spv":"SS26PL","issue":"Wonder Cement LD","description":"LD charges raised for ~22 lakh FY 25-26","remark":"The customer is being requested to reassess the delay impact considering the actual energy supplied, as surplus energy was delivered beyond the contractual obligation despite the delay.","next_steps":"CO team to engage with the customer, with support from the BD team during discussions.","owner":"CO team","has_next_steps":true},
+  {"sr":14,"spv":"Tamil Nadu","issue":"JSA Billing","description":"Billing pending for May 26","remark":"To decide the tariff for invoicing JS Auto considering the LD issue","next_steps":"","owner":"Unassigned","has_next_steps":false}
+];
+
+const OWNER_COLORS = {
+  "Nitin":"#e8a33d","Vinod Sir":"#3fb8af","CO team":"#8f7ee8","Amritesh":"#5fb0e8",
+  "CHW":"#e2b13d","Paurush":"#6fd19a","Unassigned":"#e2664f"
+};
+function ownerColor(o){ return OWNER_COLORS[o] || "#7a8f92"; }
+
+function uniqueSorted(arr){ return [...new Set(arr)].sort(); }
+const ALL_SPVS = uniqueSorted(DATA.map(d=>d.spv));
+const ALL_OWNERS = uniqueSorted(DATA.map(d=>d.owner));
+
+let sortState = { key:'sr', dir:1 };
+let filters = { spv:new Set(), owner:new Set(), unassignedOnly:false };
+let kpiPrev = { total:0, spvs:0, unassigned:0, owners:0 };
+let openDetailSr = null;
+
+/* ---------- filtering core ---------- */
+function applyFilters(rows, opts={}){
+  return rows.filter(d=>{
+    if(!opts.skipSpv && filters.spv.size && !filters.spv.has(d.spv)) return false;
+    if(!opts.skipOwner && filters.owner.size && !filters.owner.has(d.owner)) return false;
+    if(filters.unassignedOnly && d.has_next_steps) return false;
+    return true;
+  });
+}
+function getFiltered(){ return applyFilters(DATA); }
+
+/* ---------- multiselect dropdowns ---------- */
+function buildMsOptions(containerId, values, filterKey, colorFn){
+  const el = document.getElementById(containerId);
+  el.innerHTML = '';
+  values.forEach(v=>{
+    const row = document.createElement('label');
+    row.className = 'ms-option';
+    const swatch = colorFn ? `<span class="swatch" style="background:${colorFn(v)}"></span>` : '';
+    row.innerHTML = `<input type="checkbox" data-key="${filterKey}" value="${v.replace(/"/g,'&quot;')}"> ${swatch}<span>${escapeHtml(v)}</span>`;
+    el.appendChild(row);
+  });
+}
+function syncMsCheckboxes(){
+  document.querySelectorAll('#spvMsOptions input').forEach(cb=>{ cb.checked = filters.spv.has(cb.value); });
+  document.querySelectorAll('#ownerMsOptions input').forEach(cb=>{ cb.checked = filters.owner.has(cb.value); });
+  const spvLabel = document.getElementById('spvMsLabel');
+  const ownerLabel = document.getElementById('ownerMsLabel');
+  spvLabel.textContent = filters.spv.size ? `${filters.spv.size} SPV${filters.spv.size>1?'s':''} selected` : 'All SPVs';
+  ownerLabel.textContent = filters.owner.size ? `${filters.owner.size} owner${filters.owner.size>1?'s':''} selected` : 'All Owners';
+  document.getElementById('spvMsBtn').classList.toggle('has-selection', filters.spv.size>0);
+  document.getElementById('ownerMsBtn').classList.toggle('has-selection', filters.owner.size>0);
+}
+function toggleMs(id, forceState){
+  const el = document.getElementById(id);
+  const shouldOpen = forceState !== undefined ? forceState : !el.classList.contains('open');
+  document.querySelectorAll('.ms.open').forEach(o=>{ if(o.id!==id) o.classList.remove('open'); });
+  el.classList.toggle('open', shouldOpen);
+}
+document.getElementById('spvMsBtn').addEventListener('click', e=>{ e.stopPropagation(); toggleMs('spvMs'); });
+document.getElementById('ownerMsBtn').addEventListener('click', e=>{ e.stopPropagation(); toggleMs('ownerMs'); });
+document.addEventListener('click', e=>{
+  if(!e.target.closest('.ms')) document.querySelectorAll('.ms.open').forEach(o=>o.classList.remove('open'));
+});
+document.getElementById('spvMsPanel').addEventListener('change', e=>{
+  if(e.target.matches('input[type=checkbox]')){
+    if(e.target.checked) filters.spv.add(e.target.value); else filters.spv.delete(e.target.value);
+    renderAll();
+  }
+});
+document.getElementById('ownerMsPanel').addEventListener('change', e=>{
+  if(e.target.matches('input[type=checkbox]')){
+    if(e.target.checked) filters.owner.add(e.target.value); else filters.owner.delete(e.target.value);
+    renderAll();
+  }
+});
+document.querySelectorAll('.ms-actions button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    const target = btn.dataset.target, act = btn.dataset.act;
+    const set = target==='spv' ? filters.spv : filters.owner;
+    const values = target==='spv' ? ALL_SPVS : ALL_OWNERS;
+    set.clear();
+    if(act==='all') values.forEach(v=>set.add(v));
+    renderAll();
+  });
+});
+
+/* ---------- chips ---------- */
+function renderChips(){
+  const row = document.getElementById('chipsRow');
+  row.innerHTML = '';
+  const addChip = (label, colorHex, onRemove)=>{
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.innerHTML = `${colorHex?`<span class="swatch" style="background:${colorHex}"></span>`:''}${escapeHtml(label)}<button aria-label="remove">✕</button>`;
+    chip.querySelector('button').addEventListener('click', onRemove);
+    row.appendChild(chip);
+  };
+  filters.spv.forEach(v=> addChip(`SPV: ${v}`, '#e8a33d', ()=>{ filters.spv.delete(v); renderAll(); }));
+  filters.owner.forEach(v=> addChip(`Owner: ${v}`, ownerColor(v), ()=>{ filters.owner.delete(v); renderAll(); }));
+  if(filters.unassignedOnly) addChip('Awaiting assignment only', '#e2664f', ()=>{ filters.unassignedOnly=false; renderAll(); });
+}
+
+/* ---------- KPIs (animated) ---------- */
+function animateValue(el, start, end, duration=450){
+  if(start===end){ el.textContent=end; return; }
+  const t0 = performance.now();
+  function step(now){
+    const p = Math.min((now-t0)/duration, 1);
+    const eased = 1 - Math.pow(1-p, 3);
+    el.textContent = Math.round(start + (end-start)*eased);
+    if(p<1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+function renderKPIs(rows){
+  const total = rows.length;
+  const spvs = uniqueSorted(rows.map(r=>r.spv)).length;
+  const unassigned = rows.filter(r=>!r.has_next_steps).length;
+  const owners = uniqueSorted(rows.map(r=>r.owner)).filter(o=>o!=='Unassigned').length;
+
+  animateValue(document.getElementById('kpiTotal'), kpiPrev.total, total);
+  animateValue(document.getElementById('kpiSpvs'), kpiPrev.spvs, spvs);
+  animateValue(document.getElementById('kpiUnassigned'), kpiPrev.unassigned, unassigned);
+  animateValue(document.getElementById('kpiOwners'), kpiPrev.owners, owners);
+  kpiPrev = { total, spvs, unassigned, owners };
+
+  document.getElementById('kpiCardUnassigned').classList.toggle('active', filters.unassignedOnly);
+  document.getElementById('kpiCardTotal').classList.toggle('active', filters.spv.size>0 || filters.owner.size>0 || filters.unassignedOnly);
+}
+document.getElementById('kpiCardTotal').addEventListener('click', ()=>{
+  filters = { spv:new Set(), owner:new Set(), unassignedOnly:false };
+  renderAll();
+});
+document.getElementById('kpiCardUnassigned').addEventListener('click', ()=>{
+  filters.unassignedOnly = !filters.unassignedOnly;
+  renderAll();
+});
+
+/* ---------- charts (cross-filtering) ---------- */
+Chart.register(ChartDataLabels);
+let spvChart, ownerChart;
+
+function renderCharts(){
+  const spvRows = applyFilters(DATA, {skipSpv:true});
+  const ownerRows = applyFilters(DATA, {skipOwner:true});
+
+  const spvCounts = {};
+  ALL_SPVS.forEach(s=>spvCounts[s]=0);
+  spvRows.forEach(r=>{ spvCounts[r.spv] = (spvCounts[r.spv]||0)+1; });
+  const spvLabels = ALL_SPVS.filter(s=>spvCounts[s]>0 || filters.spv.has(s));
+  const spvData = spvLabels.map(s=>spvCounts[s]);
+  const spvColors = spvLabels.map(s=>{
+    if(!filters.spv.size) return '#e8a33d';
+    return filters.spv.has(s) ? '#e8a33d' : '#e8d9c2';
+  });
+
+  const ownerCounts = {};
+  ALL_OWNERS.forEach(o=>ownerCounts[o]=0);
+  ownerRows.forEach(r=>{ ownerCounts[r.owner] = (ownerCounts[r.owner]||0)+1; });
+  const ownerLabels = ALL_OWNERS.filter(o=>ownerCounts[o]>0 || filters.owner.has(o));
+  const ownerData = ownerLabels.map(o=>ownerCounts[o]);
+  const ownerColors = ownerLabels.map(o=>{
+    const base = ownerColor(o);
+    if(!filters.owner.size) return base;
+    return filters.owner.has(o) ? base : '#e4ded8';
+  });
+
+  const ctx1 = document.getElementById('spvChart').getContext('2d');
+  if(spvChart) spvChart.destroy();
+  spvChart = new Chart(ctx1, {
+    type:'bar',
+    data:{ labels:spvLabels, datasets:[{ data:spvData, backgroundColor:spvColors, borderRadius:4, maxBarThickness:34 }] },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      animation:{ duration:500, easing:'easeOutQuart' },
+      onHover:(evt, els)=>{ evt.native.target.style.cursor = els.length ? 'pointer' : 'default'; },
+      onClick:(evt, els)=>{
+        if(!els.length) return;
+        const label = spvLabels[els[0].index];
+        if(filters.spv.has(label)) filters.spv.delete(label); else filters.spv.add(label);
+        renderAll();
+      },
+      plugins:{
+        legend:{display:false},
+        tooltip:{ backgroundColor:'#0f2129', borderColor:'#1f3d47', borderWidth:1, titleColor:'#eaf2f2', bodyColor:'#8fa8ac' },
+        datalabels:{ anchor:'end', align:'top', offset:2, color:'#5a4632', font:{size:11, weight:'700'}, formatter:v=>v||'' }
+      },
+      scales:{
+        x:{ ticks:{ color:'#8fa8ac', font:{size:10}, maxRotation:35, minRotation:0 }, grid:{ display:false } },
+        y:{ beginAtZero:true, grace:'12%', ticks:{ color:'#8fa8ac', stepSize:1, font:{size:11} }, grid:{ color:'#1f3d47' } }
+      }
+    }
+  });
+
+  const ctx2 = document.getElementById('ownerChart').getContext('2d');
+  if(ownerChart) ownerChart.destroy();
+  ownerChart = new Chart(ctx2, {
+    type:'doughnut',
+    data:{ labels:ownerLabels, datasets:[{ data:ownerData, backgroundColor:ownerColors, borderColor:'#132832', borderWidth:2, hoverOffset:10 }] },
+    options:{
+      responsive:true, maintainAspectRatio:false, cutout:'62%',
+      animation:{ duration:500, easing:'easeOutQuart' },
+      onHover:(evt, els)=>{ evt.native.target.style.cursor = els.length ? 'pointer' : 'default'; },
+      onClick:(evt, els)=>{
+        if(!els.length) return;
+        const label = ownerLabels[els[0].index];
+        if(filters.owner.has(label)) filters.owner.delete(label); else filters.owner.add(label);
+        renderAll();
+      },
+      plugins:{
+        legend:{ position:'bottom', labels:{ color:'#8fa8ac', font:{size:11}, boxWidth:10, padding:12 } },
+        tooltip:{ backgroundColor:'#0f2129', borderColor:'#1f3d47', borderWidth:1, titleColor:'#eaf2f2', bodyColor:'#8fa8ac' },
+        datalabels:{ color:'#fff', font:{size:12, weight:'700'}, formatter:v=>v||'', display:ctx=>ctx.dataset.data[ctx.dataIndex]>0 }
+      }
+    }
+  });
+}
+
+/* ---------- table ---------- */
+function escapeHtml(s){
+  return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function toggleSpvFilter(v){ if(filters.spv.has(v)) filters.spv.delete(v); else filters.spv.add(v); renderAll(); }
+function toggleOwnerFilter(v){ if(filters.owner.has(v)) filters.owner.delete(v); else filters.owner.add(v); renderAll(); }
+
+function renderTable(rows){
+  const sorted = [...rows].sort((a,b)=>{
+    let av=a[sortState.key], bv=b[sortState.key];
+    if(typeof av==='boolean'){ av=av?1:0; bv=bv?1:0; }
+    if(typeof av==='string'){ av=av.toLowerCase(); bv=bv.toLowerCase(); }
+    if(av<bv) return -1*sortState.dir;
+    if(av>bv) return 1*sortState.dir;
+    return 0;
+  });
+
+  document.querySelectorAll('#issueTable thead th').forEach(th=>{
+    th.classList.toggle('sorted', th.dataset.key===sortState.key);
+    const arrow = th.querySelector('.arrow');
+    if(th.dataset.key===sortState.key) arrow.textContent = sortState.dir===1 ? '↑' : '↓';
+    else arrow.textContent = '↕';
+  });
+
+  const tbody = document.getElementById('tableBody');
+  tbody.innerHTML = '';
+
+  if(sorted.length===0){
+    const tr = document.createElement('tr');
+    tr.className = 'empty-row';
+    tr.innerHTML = `<td colspan="5">No issues match the current filters.</td>`;
+    tbody.appendChild(tr);
+    return;
+  }
+
+  sorted.forEach((r, i)=>{
+    const tr = document.createElement('tr');
+    tr.className = 'data-row';
+    tr.style.animationDelay = `${Math.min(i,12)*25}ms`;
+    tr.dataset.sr = r.sr;
+    tr.innerHTML = `
+      <td class="sr-cell">${r.sr}</td>
+      <td><span class="spv-pill" data-spv="${escapeHtml(r.spv)}" title="Click to filter by this SPV">${escapeHtml(r.spv)}</span></td>
+      <td>
+        <div class="issue-title">${escapeHtml(r.issue)}</div>
+        <div class="desc-preview">${escapeHtml(r.description || '—')}</div>
+      </td>
+      <td><span class="owner-tag ${r.owner==='Unassigned'?'unassigned':''}" data-owner="${escapeHtml(r.owner)}" title="Click to filter by this owner"><span class="status-dot ${r.has_next_steps?'assigned':'unassigned'}"></span>${escapeHtml(r.owner)}</span></td>
+      <td>${r.has_next_steps ? '<span style="color:#3fb8af;font-size:12px;">● Logged</span>' : '<span style="color:#e2664f;font-size:12px;">● Pending</span>'}</td>
+    `;
+    const detailTr = document.createElement('tr');
+    detailTr.className = 'detail-row' + (openDetailSr===r.sr ? ' open' : '');
+    detailTr.innerHTML = `<td colspan="5"><div class="inner">
+      <div class="detail-block"><div class="k">Brief Description</div><div class="v">${escapeHtml(r.description || 'Not specified')}</div></div>
+      <div class="detail-block"><div class="k">Remark</div><div class="v">${escapeHtml(r.remark || 'Not specified')}</div></div>
+      <div class="detail-block"><div class="k">Next Steps (as on 7 July 2026)</div><div class="v">${escapeHtml(r.next_steps || 'Not yet assigned')}</div></div>
+    </div></td>`;
+
+    tr.addEventListener('click', (e)=>{
+      if(e.target.closest('.spv-pill') || e.target.closest('.owner-tag')) return;
+      const willOpen = !detailTr.classList.contains('open');
+      openDetailSr = willOpen ? r.sr : null;
+      document.querySelectorAll('.detail-row.open').forEach(d=>d.classList.remove('open'));
+      if(willOpen) detailTr.classList.add('open');
+    });
+
+    tr.querySelector('.spv-pill').addEventListener('click', e=>{ e.stopPropagation(); toggleSpvFilter(r.spv); });
+    tr.querySelector('.owner-tag').addEventListener('click', e=>{ e.stopPropagation(); toggleOwnerFilter(r.owner); });
+
+    tbody.appendChild(tr);
+    tbody.appendChild(detailTr);
+  });
+}
+
+document.querySelectorAll('#issueTable thead th').forEach(th=>{
+  th.addEventListener('click', ()=>{
+    const key = th.dataset.key;
+    if(sortState.key===key){ sortState.dir *= -1; } else { sortState = { key, dir:1 }; }
+    renderTable(getFiltered());
+  });
+});
+
+document.getElementById('resetBtn').addEventListener('click', ()=>{
+  filters = { spv:new Set(), owner:new Set(), unassignedOnly:false };
+  renderAll();
+});
+
+/* ---------- orchestration ---------- */
+function renderAll(){
+  const rows = getFiltered();
+  renderKPIs(rows);
+  renderCharts();
+  renderTable(rows);
+  renderChips();
+  syncMsCheckboxes();
+}
+
+buildMsOptions('spvMsOptions', ALL_SPVS, 'spv', null);
+buildMsOptions('ownerMsOptions', ALL_OWNERS, 'owner', ownerColor);
+renderAll();
+</script>
+</body>
+</html>
